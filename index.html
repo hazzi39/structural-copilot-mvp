@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Preview Test</title>
+</head>
+<body>
+  <h1>Live Preview is working</h1>
+  <p>If you can read this, VS Code Live Preview is serving the repo root <code>index.html</code>.</p>
+
+  <h2>Structural Copilot Snapshot</h2>
+  <p>Workflow: <strong>rc_beam_design</strong></p>
+  <p>Recommended section: <strong>300 x 500 mm</strong></p>
+  <p>Recommended reinforcement: <strong>4N20</strong></p>
+  <p>Ligatures: <strong>2-leg N10 @ 200 mm</strong></p>
+  <p>Moment demand / capacity: <strong>20.80 / 150.51 kN.m</strong></p>
+  <p>Shear demand / capacity: <strong>25.00 / 779.06 kN</strong></p>
+
+  <h2>Candidate Comparison</h2>
+  <table border="1" cellpadding="8" cellspacing="0">
+    <thead>
+      <tr>
+        <th>Section</th>
+        <th>Main bars</th>
+        <th>Ligatures</th>
+        <th>Mu / phiMn</th>
+        <th>Vu / phiVu</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>250 x 450 mm</td>
+        <td>4N16</td>
+        <td>2-leg N10 @ 200</td>
+        <td>0.238</td>
+        <td>0.039</td>
+        <td>Revise</td>
+      </tr>
+      <tr>
+        <td>300 x 500 mm</td>
+        <td>4N20</td>
+        <td>2-leg N10 @ 200</td>
+        <td>0.138</td>
+        <td>0.032</td>
+        <td>Selected</td>
+      </tr>
+      <tr>
+        <td>300 x 600 mm</td>
+        <td>4N24</td>
+        <td>2-leg N12 @ 180</td>
+        <td>0.088</td>
+        <td>0.024</td>
+        <td>Feasible</td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>
