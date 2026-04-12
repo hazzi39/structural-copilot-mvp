@@ -25,6 +25,7 @@ import type {
   AdvancedSectionPropertyBrowserAdapter,
   AdvancedSectionPropertyInput,
 } from "@/server/tools/advanced-section-property-browser-adapter";
+import type { SectionPropertiesCalcBrowserAdapter } from "@/server/tools/section-properties-calc-browser-adapter";
 import type {
   TimberMemberBrowserAdapter,
   TimberMemberCapacityInput,
@@ -38,6 +39,7 @@ import {
   createDesignActionsAdapterFromRegistry,
   createRcMomentCapacityAdapterFromRegistry,
   createRcShearCapacityAdapterFromRegistry,
+  createSectionPropertiesCalcAdapterFromRegistry,
   createTimberMemberAdapterFromRegistry,
 } from "@/server/tools/tool-registry";
 import { runRcBeamWorkflow } from "@/server/orchestrator/rc-beam-workflow";
@@ -50,6 +52,7 @@ export interface StructuralCopilotServiceDependencies {
   reasoningService: PrivateReasoningService;
   timberTool?: Pick<TimberMemberBrowserAdapter, "calculate">;
   sectionPropertyTool?: Pick<AdvancedSectionPropertyBrowserAdapter, "calculate">;
+  secondarySectionPropertyTool?: Pick<SectionPropertiesCalcBrowserAdapter, "calculate">;
 }
 
 export type StructuralCopilotServiceResult =
@@ -66,6 +69,7 @@ export class StructuralCopilotService {
       ),
       timberTool: createTimberMemberAdapterFromRegistry(),
       sectionPropertyTool: createAdvancedSectionPropertyAdapterFromRegistry(),
+      secondarySectionPropertyTool: createSectionPropertiesCalcAdapterFromRegistry(),
       reasoningService: new StubPrivateReasoningService(),
     },
   ) {}
@@ -190,6 +194,7 @@ export class StructuralCopilotService {
         const response = await runSectionPropertyWorkflow({
           request: sectionPropertyRequest as AdvancedSectionPropertyInput,
           sectionTool: this.dependencies.sectionPropertyTool,
+          secondarySectionTool: this.dependencies.secondarySectionPropertyTool,
           reasoningService: this.dependencies.reasoningService,
         });
 

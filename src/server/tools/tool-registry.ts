@@ -3,6 +3,7 @@ import { DesignActionsBrowserAdapter } from "@/server/tools/design-actions-brows
 import { RcMomentCapacityBrowserAdapter } from "@/server/tools/rc-moment-capacity-browser-adapter";
 import { RcShearCapacityBrowserAdapter } from "@/server/tools/rc-shear-capacity-browser-adapter";
 import { RealDesignActionsAdapter } from "@/server/tools/real-design-actions-adapter";
+import { SectionPropertiesCalcBrowserAdapter } from "@/server/tools/section-properties-calc-browser-adapter";
 import { TimberMemberBrowserAdapter } from "@/server/tools/timber-member-browser-adapter";
 
 export type StructuralToolKey =
@@ -11,7 +12,8 @@ export type StructuralToolKey =
   | "rc_moment_browser"
   | "rc_shear_browser"
   | "timber_member_browser"
-  | "advanced_section_property_browser";
+  | "advanced_section_property_browser"
+  | "section_properties_calc_browser";
 
 export interface StructuralToolDefinition {
   key: StructuralToolKey;
@@ -91,6 +93,17 @@ export const structuralToolRegistry: StructuralToolDefinition[] = [
     env: {
       enabledVar: "STRUCTURAL_ENABLE_ADVANCED_SECTION_PROPERTY_BROWSER_TOOL",
       urlVar: "STRUCTURAL_ADVANCED_SECTION_PROPERTY_TOOL_URL",
+    },
+  },
+  {
+    key: "section_properties_calc_browser",
+    workflowIds: ["section_property_analysis"],
+    mode: "browser",
+    label: "Section Properties Calc Browser Tool",
+    allowedOrigins: ["https://sectionpropertiescalc.netlify.app"],
+    env: {
+      enabledVar: "STRUCTURAL_ENABLE_SECTION_PROPERTIES_CALC_BROWSER_TOOL",
+      urlVar: "STRUCTURAL_SECTION_PROPERTIES_CALC_TOOL_URL",
     },
   },
 ];
@@ -185,6 +198,20 @@ export function createAdvancedSectionPropertyAdapterFromRegistry() {
   const url = process.env[definition.env.urlVar] ?? definition.allowedOrigins[0];
   enforceAllowedOrigin(definition, url);
   return new AdvancedSectionPropertyBrowserAdapter({ url });
+}
+
+export function createSectionPropertiesCalcAdapterFromRegistry() {
+  const definition = getToolDefinition("section_properties_calc_browser");
+  if (
+    !definition?.env.enabledVar ||
+    process.env[definition.env.enabledVar] !== "true"
+  ) {
+    return undefined;
+  }
+
+  const url = process.env[definition.env.urlVar] ?? definition.allowedOrigins[0];
+  enforceAllowedOrigin(definition, url);
+  return new SectionPropertiesCalcBrowserAdapter({ url });
 }
 
 function enforceAllowedOrigin(
