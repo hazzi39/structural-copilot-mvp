@@ -48,6 +48,26 @@ describe("StructuralCopilotService", () => {
     expect(result.response.alternatives.length).toBeGreaterThan(0);
   });
 
+  it("treats pinned support wording as a simply supported RC beam input", async () => {
+    const result = await service.handleRequest({
+      prompt:
+        "Find an optimal section size and reinforcement for a reinforced concrete beam. The section must span 5 metres and is pinned supporting a 10 kN/m applied load. Check moment capacity and shear capacity. Provide an alternative steel section.",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(
+      result.response.parsedInputs.some(
+        (item) =>
+          item.label === "Support condition" &&
+          item.value === "simply-supported",
+      ),
+    ).toBe(true);
+  });
+
   it("uses material strengths parsed from the prompt and reports ligature assumptions", async () => {
     const result = await service.handleRequest({
       prompt:
@@ -157,6 +177,32 @@ describe("StructuralCopilotService", () => {
     ).toBe(true);
   });
 
+  it("honors shared N-bar diameter constraints for both main reinforcement and ligatures", async () => {
+    const result = await service.handleRequest({
+      prompt:
+        "Find an optimal section size and reinforcement for a reinforced concrete beam. The section must span 7 metres and is pinned at both ends supporting a 12 kN/m applied load. Check moment capacity and shear capacity. Provide an alternative steel section. Use N12 bars only for both shear and main bars.",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(
+      result.response.keyOutputs.some(
+        (item) =>
+          item.label === "Recommended reinforcement" &&
+          item.value.endsWith("N12"),
+      ),
+    ).toBe(true);
+    expect(
+      result.response.keyOutputs.some(
+        (item) =>
+          item.label === "Assumed ligatures" && item.value.includes("N12"),
+      ),
+    ).toBe(true);
+  });
+
   it("returns missing inputs when the structural prompt is incomplete", async () => {
     const result = await service.handleRequest({
       prompt:
@@ -169,7 +215,10 @@ describe("StructuralCopilotService", () => {
     }
 
     expect(result.response.code).toBe("MISSING_INPUTS");
-    expect(result.response.details).toContain("spanMeters");
+    expect(result.response.error).toContain("span");
+    expect(result.response.details).toContain(
+      "Add a span, for example: 'span 5 metres' or '5 m beam'.",
+    );
   });
 
   it("runs the section property workflow for approved geometry prompts", async () => {

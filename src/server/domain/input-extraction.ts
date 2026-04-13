@@ -28,7 +28,11 @@ export interface NormalizedRcBeamRequest {
 
 const supportMappings: Array<{ pattern: RegExp; value: SupportCondition }> = [
   { pattern: /\bfixed at both ends\b|\bfixed[- ]ended\b|\bfixed-fixed\b/i, value: "fixed-fixed" },
-  { pattern: /\bsimply supported\b|\bsimply-supported\b/i, value: "simply-supported" },
+  {
+    pattern:
+      /\bsimply supported\b|\bsimply-supported\b|\bpinned\b|\bpin(?:ned)?[- ](?:pin(?:ned)?|roller)\b|\broller\b/i,
+    value: "simply-supported",
+  },
   { pattern: /\bcantilever\b/i, value: "cantilever" },
 ];
 
@@ -67,6 +71,7 @@ export function extractRcBeamRequest(
   );
   const requestedSectionSize = extractSectionSize(prompt);
   const requestedRebar = extractMainRebar(prompt);
+  const sharedBarDiameterMm = extractSharedBarDiameter(prompt);
   const requestedRebarLayerCount = extractFirstNumber(
     prompt,
     /(\d+)\s*(?:layers?|rows?)[^.]{0,25}(?:bars?|reinforcement|reo)|(?:bars?|reinforcement|reo)[^.]{0,25}(\d+)\s*(?:layers?|rows?)/i,
@@ -88,9 +93,9 @@ export function extractRcBeamRequest(
     requestedWidthMm: requestedSectionSize?.widthMm,
     requestedDepthMm: requestedSectionSize?.depthMm,
     requestedRebarCount: requestedRebar?.count,
-    requestedRebarDiameterMm: requestedRebar?.diameterMm,
+    requestedRebarDiameterMm: requestedRebar?.diameterMm ?? sharedBarDiameterMm,
     requestedRebarLayerCount,
-    requestedStirrupDiameterMm: requestedStirrups?.diameterMm,
+    requestedStirrupDiameterMm: requestedStirrups?.diameterMm ?? sharedBarDiameterMm,
     requestedStirrupLegCount: requestedStirrups?.count,
     requestedStirrupSpacingMm,
     requiresMomentCheck: /\bmoment\b/i.test(prompt) || /\bcapacity\b/i.test(prompt),
@@ -195,7 +200,7 @@ function extractSectionSize(
 
 function extractMainRebar(
   prompt: string,
-): { count: number; diameterMm: number } | undefined {
+): { count?: number; diameterMm?: number } | undefined {
   const keywordWindow = extractKeywordWindow(prompt, [
     "bars?",
     "reinforcement",
@@ -207,20 +212,25 @@ function extractMainRebar(
     /(\d+)\s*[Nn]\s*(\d+(?:\.\d+)?)/,
   );
 
-  if (!match) {
-    return undefined;
+  if (match) {
+    const count = match[1];
+    const diameter = match[2];
+
+    if (count && diameter) {
+      return {
+        count: Number(count),
+        diameterMm: Number(diameter),
+      };
+    }
   }
 
-  const count = match[1];
-  const diameter = match[2];
-
-  if (!count || !diameter) {
+  const diameterOnlyMatch = keywordWindow?.match(/\b[Nn]\s*(\d+(?:\.\d+)?)\b/);
+  if (!diameterOnlyMatch?.[1]) {
     return undefined;
   }
 
   return {
-    count: Number(count),
-    diameterMm: Number(diameter),
+    diameterMm: Number(diameterOnlyMatch[1]),
   };
 }
 
@@ -294,4 +304,20 @@ export function mergeStructuredInputs(
     appliedLoadKnPerM: normalized.appliedLoadKnPerM ?? base?.appliedLoadKnPerM,
     materialFamily: normalized.materialFamily ?? base?.materialFamily,
   };
+}
+
+export function extractSharedBarDiameter(prompt: string): number | undefined {
+  const sharedBarsMatch = prompt.match(
+    /(?:use|using)\s*[Nn]?\s*(\d+(?:\.\d+)?)\s*bars?\s*(?:only)?[^.]{0,50}\bboth\s+shear\s+and\s+main\s+bars\b/i,
+  );
+
+  if (sharedBarsMatch?.[1]) {
+    return Number(sharedBarsMatch[1]);
+  }
+
+  const sharedReoMatch = prompt.match(
+    /\bboth\s+shear\s+and\s+main\s+bars\b[^.]{0,40}[Nn]\s*(\d+(?:\.\d+)?)\b/i,
+  );
+
+  return sharedReoMatch?.[1] ? Number(sharedReoMatch[1]) : undefined;
 }

@@ -3,7 +3,9 @@
 import {
   startTransition,
   useDeferredValue,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -40,7 +42,9 @@ export function StructuralCopilotWorkbench() {
   const [result, setResult] = useState<StructuralCopilotResponse | null>(null);
   const [error, setError] = useState<StructuralCopilotErrorResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
+  const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const promptMeta = useMemo(() => {
     const trimmed = deferredPrompt.trim();
@@ -55,10 +59,34 @@ export function StructuralCopilotWorkbench() {
     };
   }, [deferredPrompt]);
 
+  useEffect(() => {
+    return () => {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+      }
+    };
+  }, []);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
+    setLoadingProgress(6);
     setError(null);
+
+    if (loadingTimerRef.current) {
+      clearInterval(loadingTimerRef.current);
+    }
+
+    loadingTimerRef.current = setInterval(() => {
+      setLoadingProgress((current) => {
+        if (current >= 92) {
+          return current;
+        }
+
+        const increment = current < 30 ? 9 : current < 65 ? 6 : 3;
+        return Math.min(current + increment, 92);
+      });
+    }, 220);
 
     try {
       const response = await fetch("/api/copilot", {
@@ -73,6 +101,11 @@ export function StructuralCopilotWorkbench() {
           | StructuralCopilotErrorResponse;
 
       if (!response.ok) {
+        if (loadingTimerRef.current) {
+          clearInterval(loadingTimerRef.current);
+          loadingTimerRef.current = null;
+        }
+        setLoadingProgress(100);
         startTransition(() => {
           setResult(null);
           setError(data as StructuralCopilotErrorResponse);
@@ -81,6 +114,11 @@ export function StructuralCopilotWorkbench() {
       }
 
       const structuredResult = data as StructuralCopilotResponse;
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setLoadingProgress(100);
       startTransition(() => {
         setResult(structuredResult);
         setRecentRuns((current) => [
@@ -101,6 +139,11 @@ export function StructuralCopilotWorkbench() {
         ].slice(0, 6));
       });
     } catch {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setLoadingProgress(100);
       startTransition(() => {
         setResult(null);
         setError({
@@ -110,7 +153,10 @@ export function StructuralCopilotWorkbench() {
         });
       });
     } finally {
-      setIsSubmitting(false);
+      window.setTimeout(() => {
+        setIsSubmitting(false);
+        setLoadingProgress(0);
+      }, 220);
     }
   }
 
@@ -175,6 +221,28 @@ export function StructuralCopilotWorkbench() {
                   <MiniMetaCard label="Words" value={promptMeta.words.toString()} />
                   <MiniMetaCard label="Lines" value={promptMeta.lines.toString()} />
                 </div>
+
+                {isSubmitting ? (
+                  <div className="rounded-[18px] border border-teal-100 bg-[linear-gradient(180deg,rgba(240,253,250,0.96),rgba(236,253,245,0.94))] px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
+                        Workflow progress
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-teal-900">
+                        {loadingProgress}%
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-teal-100">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,#0f766e_0%,#14b8a6_55%,#34d399_100%)] transition-[width] duration-200"
+                        style={{ width: `${loadingProgress}%` }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-teal-800/80">
+                      Validating scope, selecting workflow, and running approved structural tools.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </article>
 
@@ -792,11 +860,17 @@ function RcVisualisations({
   result: StructuralCopilotResponse;
   maxValue: number;
 }) {
+  const [diagramMode, setDiagramMode] = useState<"moment" | "shear">("moment");
   const momentPair = getDemandCapacityPair(result, "Moment verification");
   const shearPair = getDemandCapacityPair(result, "Shear verification");
   const sectionSize = getGroupValue(result, "Selected RC design", "Section size");
   const mainReo = getGroupValue(result, "Selected RC design", "Main reinforcement");
   const ligatures = getGroupValue(result, "Selected RC design", "Ligatures");
+  const span = getParsedNumeric(result, "Span");
+  const appliedLoad = getParsedNumeric(result, "Applied load");
+  const supportCondition = result.parsedInputs.find(
+    (item) => item.label === "Support condition",
+  )?.value;
 
   return (
     <div className="grid gap-3">
@@ -823,7 +897,53 @@ function RcVisualisations({
         ) : null}
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+      <article className={`${innerCardClass} p-4`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">
+              Member line diagram
+            </h4>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Span, restraint conditions, applied line load, and the current analysis diagram.
+            </p>
+          </div>
+          <div className="inline-flex rounded-full border border-slate-200 bg-slate-100/90 p-1">
+            <button
+              type="button"
+              onClick={() => setDiagramMode("moment")}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                diagramMode === "moment"
+                  ? "bg-white text-teal-800 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              Bending moment
+            </button>
+            <button
+              type="button"
+              onClick={() => setDiagramMode("shear")}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                diagramMode === "shear"
+                  ? "bg-white text-teal-800 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              Shear force
+            </button>
+          </div>
+        </div>
+
+        <BeamDiagramCard
+          spanMeters={span}
+          supportCondition={supportCondition}
+          appliedLoadKnPerM={appliedLoad}
+          momentPair={momentPair}
+          shearPair={shearPair}
+          mode={diagramMode}
+        />
+      </article>
+
+      <div className="grid gap-3 xl:grid-cols-[0.9fr_0.95fr_1.15fr]">
         <article className={`${innerCardClass} p-4`}>
           <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">
             RC section sketch
@@ -858,10 +978,139 @@ function RcVisualisations({
 
         <article className={`${innerCardClass} p-4`}>
           <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">
+            Member inputs
+          </h4>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+            <InfoStat label="Span" value={span !== undefined ? `${span.toFixed(2)} m` : "Not reported"} />
+            <InfoStat label="Supports" value={supportCondition ?? "Not reported"} />
+            <InfoStat label="Applied load" value={appliedLoad !== undefined ? `${appliedLoad.toFixed(2)} kN/m` : "Not reported"} />
+          </div>
+        </article>
+
+        <article className={`${innerCardClass} p-4`}>
+          <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">
             {result.visualisations.title}
           </h4>
           <GenericVisualisation result={result} maxValue={maxValue} compact />
         </article>
+      </div>
+    </div>
+  );
+}
+
+function BeamDiagramCard({
+  spanMeters,
+  supportCondition,
+  appliedLoadKnPerM,
+  momentPair,
+  shearPair,
+  mode,
+}: {
+  spanMeters?: number;
+  supportCondition?: string;
+  appliedLoadKnPerM?: number;
+  momentPair?: { demand: number; capacity: number };
+  shearPair?: { demand: number; capacity: number };
+  mode: "moment" | "shear";
+}) {
+  const normalizedSupport = supportCondition ?? "not reported";
+  const isSimplySupported = normalizedSupport === "simply-supported";
+  const isFixed = normalizedSupport === "fixed-fixed";
+  const isCantilever = normalizedSupport === "cantilever";
+  const momentAmplitude = momentPair ? Math.min(momentPair.demand / Math.max(momentPair.capacity, 1), 1) : 0.45;
+  const shearAmplitude = shearPair ? Math.min(shearPair.demand / Math.max(shearPair.capacity, 1), 1) : 0.35;
+  const diagramPath =
+    mode === "moment"
+      ? isCantilever
+        ? `M 40 62 C 78 62, 138 ${62 + 36 * momentAmplitude}, 196 ${76 + 44 * momentAmplitude} S 304 ${126 + 36 * momentAmplitude}, 360 ${156 + 46 * momentAmplitude}`
+        : isFixed
+          ? `M 40 126 C 84 ${114 - 24 * momentAmplitude}, 112 82, 162 82 S 250 160, 360 126`
+          : `M 40 70 C 108 132, 212 132, 360 70`
+      : isCantilever
+        ? `M 40 64 L 40 144 L 360 144`
+        : `M 40 60 L 40 ${142 - 26 * shearAmplitude} L 200 144 L 200 144 L 360 ${142 - 26 * shearAmplitude} L 360 60`;
+
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="rounded-[22px] border border-slate-200 bg-[linear-gradient(rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[size:22px_22px] p-4">
+        <svg viewBox="0 0 400 190" className="w-full">
+          <defs>
+            <marker id="load-arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <path d="M0 0 L8 4 L0 8 Z" fill="#0f766e" />
+            </marker>
+          </defs>
+
+          <line x1="40" y1="62" x2="360" y2="62" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" />
+
+          {Array.from({ length: 7 }).map((_, index) => {
+            const x = 60 + index * 45;
+            return (
+              <g key={x}>
+                <line x1={x} y1="16" x2={x} y2="48" stroke="#0f766e" strokeWidth="2" markerEnd="url(#load-arrow)" />
+              </g>
+            );
+          })}
+
+          {isFixed ? (
+            <>
+              <rect x="24" y="40" width="10" height="44" rx="2" fill="#0f172a" />
+              <rect x="366" y="40" width="10" height="44" rx="2" fill="#0f172a" />
+            </>
+          ) : null}
+
+          {isSimplySupported ? (
+            <>
+              <polygon points="40,80 24,104 56,104" fill="#0f172a" />
+              <circle cx="360" cy="102" r="10" fill="none" stroke="#0f172a" strokeWidth="4" />
+            </>
+          ) : null}
+
+          {isCantilever ? (
+            <rect x="24" y="40" width="10" height="44" rx="2" fill="#0f172a" />
+          ) : null}
+
+          <line x1="40" y1="168" x2="360" y2="168" stroke="#94a3b8" strokeWidth="2" />
+          <line x1="40" y1="162" x2="40" y2="174" stroke="#94a3b8" strokeWidth="2" />
+          <line x1="360" y1="162" x2="360" y2="174" stroke="#94a3b8" strokeWidth="2" />
+          <text x="200" y="161" textAnchor="middle" className="fill-slate-500 text-[11px] font-semibold uppercase tracking-[0.14em]">
+            {spanMeters !== undefined ? `${spanMeters.toFixed(2)} m span` : "Span not reported"}
+          </text>
+
+          <path
+            d={diagramPath}
+            fill="none"
+            stroke={mode === "moment" ? "#14b8a6" : "#0891b2"}
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <text x="16" y={mode === "moment" ? "132" : "150"} className="fill-slate-500 text-[11px] font-semibold uppercase tracking-[0.14em]">
+            {mode === "moment" ? "BMD" : "SFD"}
+          </text>
+        </svg>
+      </div>
+
+      <div className="grid gap-2">
+        <InfoStat
+          label="Support condition"
+          value={normalizedSupport}
+        />
+        <InfoStat
+          label="Applied UDL"
+          value={appliedLoadKnPerM !== undefined ? `${appliedLoadKnPerM.toFixed(2)} kN/m` : "Not reported"}
+        />
+        <InfoStat
+          label={mode === "moment" ? "Moment demand" : "Shear demand"}
+          value={
+            mode === "moment"
+              ? momentPair
+                ? `${momentPair.demand.toFixed(2)} kN.m`
+                : "Not reported"
+              : shearPair
+                ? `${shearPair.demand.toFixed(2)} kN`
+                : "Not reported"
+          }
+        />
       </div>
     </div>
   );

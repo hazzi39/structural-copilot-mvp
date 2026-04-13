@@ -96,13 +96,8 @@ export class MockStructuralToolAdapters implements StructuralToolAdapters {
       "calculate"
     > = new MockDesignActionsAdapter(),
     private readonly rcMomentCapacityAdapter: RcMomentCapacityAdapterLike = {
-      calculateRcMomentCapacity: async (input: RcMomentCapacityInput) => ({
-        capacityKnM:
-          (0.87 *
-            input.reinforcementAreaMm2 *
-            Math.max(input.depthMm - 60, 100)) /
-          1_000_000,
-      }),
+      calculateRcMomentCapacity: async (input: RcMomentCapacityInput) =>
+        this.estimateRcMomentCapacity(input),
     },
     private readonly rcShearCapacityAdapter: RcShearCapacityAdapterLike = {
       calculateRcShearCapacity: async (input: RcShearCapacityInput) => {
@@ -165,9 +160,27 @@ export class MockStructuralToolAdapters implements StructuralToolAdapters {
   private async calculateRcMomentCapacity(
     input: RcMomentCapacityInput,
   ): Promise<{ capacityKnM: number }> {
+    return this.estimateRcMomentCapacity(input);
+  }
+
+  private estimateRcMomentCapacity(
+    input: RcMomentCapacityInput,
+  ): Promise<{ capacityKnM: number }> | { capacityKnM: number } {
+    const steelYieldStrengthMpa = input.steelYieldStrengthMpa ?? 500;
+    const coverMm = input.coverMm ?? 45;
+    const rebarDiameterMm = input.rebarDiameterMm ?? 20;
+    const effectiveDepthMm = Math.max(
+      input.depthMm - coverMm - rebarDiameterMm / 2,
+      100,
+    );
+    const leverArmMm = 0.9 * effectiveDepthMm;
+
     return {
       capacityKnM:
-        (0.87 * input.reinforcementAreaMm2 * Math.max(input.depthMm - 60, 100)) /
+        (0.87 *
+          steelYieldStrengthMpa *
+          input.reinforcementAreaMm2 *
+          leverArmMm) /
         1_000_000,
     };
   }

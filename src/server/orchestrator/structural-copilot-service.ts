@@ -223,10 +223,9 @@ export class StructuralCopilotService {
         ok: false,
         status: 422,
         response: {
-          error:
-            "The prompt is in scope, but required engineering inputs are missing for the RC beam workflow.",
+          error: buildRcBeamMissingInputMessage(missingInputs),
           code: "MISSING_INPUTS",
-          details: missingInputs,
+          details: buildRcBeamMissingInputDetails(missingInputs),
         },
       };
     }
@@ -261,4 +260,43 @@ export class StructuralCopilotService {
       response,
     };
   }
+}
+
+function buildRcBeamMissingInputMessage(missingInputs: string[]) {
+  const labels = missingInputs.map(formatMissingRcBeamInputLabel);
+  return `The prompt is in scope, but a few RC beam inputs still need to be clarified: ${labels.join(", ")}.`;
+}
+
+function buildRcBeamMissingInputDetails(missingInputs: string[]) {
+  return missingInputs.map((input) => {
+    if (input === "spanMeters") {
+      return "Add a span, for example: 'span 5 metres' or '5 m beam'.";
+    }
+
+    if (input === "appliedLoadKnPerM") {
+      return "Add an applied line load, for example: '10 kN/m applied load'.";
+    }
+
+    if (input === "supportCondition") {
+      return "Add a support condition such as 'pinned', 'simply supported', 'fixed at both ends', or 'cantilever'.";
+    }
+
+    return input;
+  });
+}
+
+function formatMissingRcBeamInputLabel(input: string) {
+  if (input === "spanMeters") {
+    return "span";
+  }
+
+  if (input === "appliedLoadKnPerM") {
+    return "applied load";
+  }
+
+  if (input === "supportCondition") {
+    return "support condition";
+  }
+
+  return input;
 }

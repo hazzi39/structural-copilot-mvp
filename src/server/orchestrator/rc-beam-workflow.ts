@@ -210,6 +210,8 @@ export async function runRcBeamWorkflow({
         : "Section sizing is selected from the internal candidate set unless the prompt specifies dimensions.",
       request.requestedRebarCount && request.requestedRebarDiameterMm
         ? `User-requested main reinforcement ${request.requestedRebarCount}N${request.requestedRebarDiameterMm}${request.requestedRebarLayerCount ? ` in ${request.requestedRebarLayerCount} layers` : ""} was locked into candidate evaluation.`
+        : request.requestedRebarDiameterMm
+          ? `User-requested main bar diameter N${request.requestedRebarDiameterMm}${request.requestedRebarLayerCount ? ` with ${request.requestedRebarLayerCount} layers` : ""} was locked into candidate evaluation while the bar count was selected from the internal candidate set.`
         : "Main reinforcement is selected from the internal candidate set unless the prompt specifies a bar arrangement.",
       request.requestedStirrupDiameterMm
         ? `User-requested ligatures were interpreted as ${request.requestedStirrupLegCount ?? 2}-leg N${request.requestedStirrupDiameterMm}${request.requestedStirrupSpacingMm ? ` @ ${request.requestedStirrupSpacingMm} mm` : " with default spacing from the nearest candidate"} and locked into shear evaluation.`
@@ -573,6 +575,11 @@ function buildParsedInputs(
     items.push({
       label: "Requested main reinforcement",
       value: `${request.requestedRebarCount}N${request.requestedRebarDiameterMm}${request.requestedRebarLayerCount ? ` in ${request.requestedRebarLayerCount} layers` : ""}`,
+    });
+  } else if (request.requestedRebarDiameterMm) {
+    items.push({
+      label: "Requested main bar diameter",
+      value: `N${request.requestedRebarDiameterMm}${request.requestedRebarLayerCount ? ` in ${request.requestedRebarLayerCount} layers` : ""}`,
     });
   }
 

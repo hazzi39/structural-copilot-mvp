@@ -47,4 +47,14 @@ describe("extractRcBeamRequest", () => {
     expect(result.requestedStirrupDiameterMm).toBe(12);
     expect(result.requestedStirrupSpacingMm).toBe(125);
   });
+
+  it("parses shared N-bar diameter constraints for both main bars and shear bars", () => {
+    const result = extractRcBeamRequest({
+      prompt:
+        "Find an optimal section size and reinforcement for a reinforced concrete beam. The section must span 7 metres and is pinned at both ends supporting a 12 kN/m applied load. Use N12 bars only for both shear and main bars.",
+    });
+
+    expect(result.requestedRebarDiameterMm).toBe(12);
+    expect(result.requestedStirrupDiameterMm).toBe(12);
+  });
 });
